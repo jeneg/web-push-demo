@@ -27,6 +27,7 @@ export class AppComponent implements OnInit {
   message = '';
 
   allSubscriptions: SubscriptionItem[] = [];
+  currentSubscription: PushSubscription | null = null;
 
   constructor(public swPush: SwPush, private httpClient: HttpClient) {
   }
@@ -34,7 +35,10 @@ export class AppComponent implements OnInit {
   async ngOnInit() {
     await this.loadSubscriptions();
 
-    console.log('subscription', this.swPush.subscription);
+    this.swPush.subscription.subscribe(res => {
+      this.currentSubscription = res;
+      console.log('current subscription: ', res);
+    });
 
     this.swPush.messages.subscribe(res => console.log('push message: ', res))
   }
@@ -43,47 +47,63 @@ export class AppComponent implements OnInit {
     this.subscribeToPush();
   }
 
-  async push(item: SubscriptionItem) {
-    const SERVER_URL = `${apiPath}/api/send-notification`;
-    const response = await fetch(SERVER_URL, {
-      method: "post",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({id: item.id, message: this.message})
-    });
-
-    this.message = '';
-  }
-
-  private async subscribeToPush() {
-    try {
-      const sub = await this.swPush.requestSubscription({
-        serverPublicKey: PUBLIC_VAPID_KEY_OF_SERVER.publicKey,
+  unsubscribe() {
+    if (this.currentSubscription) {
+      this.swPush.unsubscribe().then(res => {
+        console.log('unsubscribed')
+      }, err => {
+        console.error('unsubscribe failed', err)
       });
 
-      console.log(sub);
-
-      await this.saveSubscription(sub)
-      await this.loadSubscriptions();
-
-      console.log(this.allSubscriptions);
-    } catch (err) {
-      console.error('Could not subscribe due to:', err);
+      this.httpClient.post(`${apiPath}/api/remove-subscription`, this.currentSubscription).subscribe(res => {
+        this.loadSubscriptions();
+      });
+    } else {
+      console.warn('no current subscription')
     }
   }
 
-  async saveSubscription(subscription: PushSubscription)  {
-    const SERVER_URL = `${apiPath}/api/save-subscription`;
-    const response = await fetch(SERVER_URL, {
-      method: "post",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({subscription, info: navigator.userAgent})
+  removeAll() {
+    this.swPush.unsubscribe().then(res => {
+      console.log('unsubscribed')
+    }, err => {
+      console.error('unsubscribe failed', err)
     });
 
-    return response.json();
+    this.httpClient.post(`${apiPath}/api/clear`, null).subscribe(res => {
+      this.loadSubscriptions();
+    });
+  }
+
+  async push(item: SubscriptionItem) {
+    this.httpClient.post(`${apiPath}/api/send-notification`, {id: item.id, message: this.message}).subscribe(res => {
+      this.message = '';
+    });
+  }
+
+  private async subscribeToPush() {
+    if (!this.currentSubscription) {
+      try {
+        const sub = await this.swPush.requestSubscription({
+          serverPublicKey: PUBLIC_VAPID_KEY_OF_SERVER.publicKey,
+        });
+
+        console.log('new subscription: ', sub);
+
+        await this.saveSubscription(sub)
+        await this.loadSubscriptions();
+        console.log(this.allSubscriptions);
+      } catch (err) {
+        console.error('Could not subscribe due to:', err);
+      }
+    }
+  }
+
+  async saveSubscription(subscription: PushSubscription) {
+    return lastValueFrom(this.httpClient.post(`${apiPath}/api/save-subscription`, {
+      subscription,
+      info: navigator.userAgent
+    }))
   };
 
   async loadSubscriptions() {

@@ -1,7 +1,11 @@
 <div class="container py-3">
-  <h4>is push Enabled {{swPush.isEnabled}}</h4>
+  <h4>Is app push service enabled {{swPush.isEnabled}}</h4>
 
-  <button class="btn btn-primary" type="button" (click)="subscribe()">subscribe</button>
+  <div class="btn-group-vertical">
+    <button class="btn btn-primary" type="button" (click)="subscribe()">subscribe</button>
+    <button class="btn btn-primary" type="button" (click)="unsubscribe()">unsubscribe</button>
+    <button class="btn btn-primary" type="button" (click)="removeAll()">remove all subscriptions</button>
+  </div>
 
   <div class="my-4 py-1 border-bottom"></div>
 
